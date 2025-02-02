@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek R1 and The gravity test</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const C = {x: canvas.width/2, y: canvas.height/2};
+    let rot = 0;
+    const ball = {x: C.x, y: C.y, vx: 5, vy: 0, r: 10};
+    const physics = {g: 0.1, f: 0.99, b: 0.8, wf: 0.7, rs: 0.02, hexR: 200};
+    
+    function getHex() {
+      return Array.from({length:6}, (_,i) => {
+        const a = i*Math.PI/3 + rot;
+        return {x:C.x+physics.hexR*Math.cos(a), y:C.y+physics.hexR*Math.sin(a)};
+      });
+    }
+    
+    function closestPoint(A,B,P) {
+      const AP = {x:P.x-A.x, y:P.y-A.y}, AB = {x:B.x-A.x, y:B.y-A.y};
+      let t = (AP.x*AB.x + AP.y*AB.y)/(AB.x**2 + AB.y**2);
+      t = Math.max(0, Math.min(1, t));
+      return {x:A.x + AB.x*t, y:A.y + AB.y*t};
+    }
+    
+    function update() {
+      rot += physics.rs;
+      ball.vy += physics.g;
+      ball.vx *= physics.f;
+      ball.vy *= physics.f;
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+    
+      const hex = getHex();
+      hex.forEach((A,i) => {
+        const B = hex[(i+1)%6];
+        const cp = closestPoint(A,B,ball);
+        const dx = ball.x - cp.x, dy = ball.y - cp.y;
+        const dist = Math.sqrt(dx**2 + dy**2);
+        
+        if (dist < ball.r) {
+          const mid = {x:(A.x+B.x)/2, y:(A.y+B.y)/2};
+          const n = {x:C.x-mid.x, y:C.y-mid.y};
+          const len = Math.sqrt(n.x**2 + n.y**2);
+          const normal = {x:n.x/len, y:n.y/len};
+          
+          const vWall = {x:-physics.rs*(cp.y-C.y), y:physics.rs*(cp.x-C.x)};
+          const relV = {x:ball.vx - vWall.x, y:ball.vy - vWall.y};
+          const dot = relV.x*normal.x + relV.y*normal.y;
+          
+          const nv = {x:-dot*normal.x*physics.b, y:-dot*normal.y*physics.b};
+          const tv = {x:(relV.x - dot*normal.x)*physics.wf, y:(relV.y - dot*normal.y)*physics.wf};
+          
+          ball.vx = nv.x + tv.x + vWall.x;
+          ball.vy = nv.y + tv.y + vWall.y;
+          
+          ball.x += normal.x * (ball.r - dist);
+          ball.y += normal.y * (ball.r - dist);
+        }
+      });
+    }
+    
+    function draw() {
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const hex = getHex();
+      ctx.strokeStyle = '#fff';
+      ctx.beginPath();
+      hex.forEach(v => ctx.lineTo(v.x, v.y));
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+      ctx.fillStyle = '#f00'; ctx.fill();
+    }
+    
+    (function loop() { update(); draw(); requestAnimationFrame(loop); })();
+    </script>
+</body>
+</html>
